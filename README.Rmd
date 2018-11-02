@@ -1,0 +1,24 @@
+##  Project: KPT
+### Study ID: 
+### Scientist: Audrey Minden
+### Data Analysis: Davit Sargsyan 
+### Created: 11/02/2018 
+
+---    
+
+## Table of Contents
+[Daily Logs](#logs) 
+[File Legend](#leg)
+[Results](#results)   
+
+## Daily Logs<a name="logs"></a>
+### 11/02/2018
+* Project created
+
+## File Legend<a name="files"></a>
+### Scripts
+***minden_ngs_v1.R***: initial script.     
+ 
+### Data
+***D3_K2_raw2.csv***: RNA expressions.        
+***combined_fr5c5_Minden_anno.csv***: DNA  
