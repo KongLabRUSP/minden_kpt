@@ -47,16 +47,16 @@ rna
 
 # Remove low counts----
 row.counts <- rowSums(rna[, -1])
-# Keep only the once with at least 10 counts per row----
-rna <- rna[row.counts >= 10, ]
-# 14,101, down from 26,364
+# Keep only the once with at least 100 counts per row----
+rna <- rna[row.counts >= 100, ]
+# 11,018, down from 26,364
 
 # Remove duplicate genes----
 genes.rm <- rna$gene[duplicated(rna$gene)]
 genes.rm
 rna[gene %in% genes.rm, ]
 rna <- rna[!(gene %in% genes.rm), ]
-# dOWN TO 14,097 genes
+# Down to 11,016 genes
 
 # Normalize data to Fragments per million (FPM)----
 mat <- data.frame(sample = colnames(rna)[-1],
@@ -84,7 +84,6 @@ colnames(rna.fpm)[-1] <- paste(colnames(rna.fpm)[-1],
 rna.fpm
 
 # DEGSeq----
-# a. (RA - C)----
 DEGexp(geneExpMatrix1 = rna,
        geneCol1 = which(colnames(rna) == "gene"), 
        expCol1 = which(colnames(rna) == "K2"), 
@@ -147,43 +146,35 @@ dt1
 write.csv(dt1,
           file = "tmp/dt1.csv")
 # Clean memory
-rm(tmp)
+rm(list = ls()[ls() != "dt1"])
 gc()
 
+# # Select genes----
+# hist(log2(dt1$D3_fpm + 1), 100)
+# qnt <- quantile(x = log2(dt1$D3_fpm + 1),
+#                 prob = c(0.005, 0.995))
+# qnt
+# # 7.217905
+# qnt <- quantile(x =dt1$D3_fpm,
+#                 prob = 0.90)
+# qnt
+#   # 0.5%     99.5% 
+#   # 1.451462 10.586535
+# 
+# # Select genes with high expression in Control group (90st quantile)
+# # significant differences in RA groups vs Control, and no significant 
+# # differences in non-RA groups vs. control, all at alpa = 0.01.
+# dt2 <- dt1[dt1$`q-val(K2-D3)` <= 0.05 &
+#              log2(dt1$D3_fpm + 1) >= qnt, ]
+# dt2
 
-# CONTINUE HERE!!!
-
-  
-# Select genes----
-hist(log2(dt1$C_fpm + 1), 100)
-qnt <- quantile(x = log2(dt1$C_fpm + 1),
-                prob = 0.90)
-qnt
-# ~7.12
-qnt <- quantile(x =dt1$ C_fpm,
-                prob = 0.90)
-qnt
-# 137.98
-
-# Select genes with high expression in Control group (90st quantile)
-# significant differences in RA groups vs Control, and no significant 
-# differences in non-RA groups vs. control, all at alpa = 0.01.
-dt2 <- dt1[`q-val(RA-C)` <= 0.01 &
-             `q-val(SRA-C)` <= 0.01 &
-             `q-val(URA-C)` <= 0.01 &
-             `q-val(SFN-C)` > 0.01 &
-             `q-val(UA-C)` > 0.01 &
-             log2(C_fpm + 1) >= qnt, ]
-dt2
+dt2 <- dt1[abs(dt1$`log2(K2-D3)`) >= 4 &
+             dt1$`q-val(K2-D3)` <= 0.01, ]
 
 # Heatmap of FPM----
 # Distances----
-tmp <- as.matrix(dt2[, c("C_fpm",
-                         "RA_fpm",
-                         "SFN_fpm",
-                         "SRA_fpm",
-                         "UA_fpm",
-                         "URA_fpm")])
+tmp <- as.matrix(dt2[, c("D3_fpm",
+                         "K2_fpm")])
 rownames(tmp) <- dt2$gene
 geneDist <- dist(tmp[, -1])
 
@@ -198,12 +189,8 @@ dtp1 <- segment(ddata)
 # Hitmap data----
 dtp2 <- melt.data.table(dt2,
                         id.vars = "gene",
-                        measure.vars = c("C_fpm",
-                                         "RA_fpm",
-                                         "SFN_fpm",
-                                         "SRA_fpm",
-                                         "UA_fpm",
-                                         "URA_fpm"),
+                        measure.vars = c("D3_fpm",
+                                         "K2_fpm"),
                         variable.name = "Treatment",
                         value.name = "RNA")
 dtp2$gene <- factor(dtp2$gene,
@@ -216,12 +203,18 @@ p1 <- ggplot(data = dtp2) +
   coord_polar("y",
               start = 0,
               direction = -1) +
+  geom_segment(data = dtp1,
+               aes(x = -log(y) -2.5,
+                   y = x, 
+                   xend = -log(yend) -2.5,
+                   yend = xend),
+               size = 1) +
   geom_tile(aes(x =  as.numeric(Treatment),
                 y = gene, 
-                fill = RNA),
+                fill = log2(RNA + 1)),
             color = "white") +
-  geom_text(data = dtp2[Treatment == "C_fpm", ],
-            aes(x = rep(6.75,
+  geom_text(data = dtp2[Treatment == "D3_fpm", ],
+            aes(x = rep(2.75,
                         nlevels(gene)),
                 y = gene,
                 angle = 90 + seq(from = 0,
@@ -243,7 +236,7 @@ p1 <- ggplot(data = dtp2) +
                        high = "green", 
                        mid = "grey", 
                        midpoint = 0, 
-                       name = "FPM") +
+                       name = "log2(FPM)") +
   scale_x_continuous("",
                      breaks = as.numeric(dt2$Treatment),
                      labels = unique(dt2$Treatment)) +
@@ -256,13 +249,8 @@ p1 <- ggplot(data = dtp2) +
         axis.ticks.x = element_blank(),
         axis.title.y = element_blank(),
         axis.text.y = element_blank(),
-        axis.ticks.y = element_blank()) +
-  geom_segment(data = dtp1,
-               aes(x = -0.1*sqrt(y) + 0.5,
-                   y = x, 
-                   xend = -0.1*sqrt(yend) + 0.5,
-                   yend = xend),
-               size = 1) 
+        axis.ticks.y = element_blank())
+
 p1
 
 tiff(filename = "tmp/heatmap_fpm.tiff",
@@ -274,205 +262,55 @@ tiff(filename = "tmp/heatmap_fpm.tiff",
 print(p1)
 graphics.off()
 
-# PCA----
-
-# CONTINUE HERE (10/30/2018)! BIPLOT ARROWS DO NOT MAKE SENSE!
-
-tmp <- as.matrix(dt1[, c("C_fpm",
-                         "RA_fpm",
-                         "SFN_fpm",
-                         "SRA_fpm",
-                         "UA_fpm",
-                         "URA_fpm")])
-rownames(tmp) <- dt1$gene
-
-tmp <- t(tmp)
-m1 <- prcomp(tmp,
-             center = TRUE,
-             scale. = TRUE)
-m1
-summary(m1)
-
-# Biplot while keep only the most important variables (Javier)----
-# Select PC-s to pliot (PC1 & PC2)
-choices <- 1:2
-# Scores, i.e. points (df.u)
-dt.scr <- data.table(m1$x[, choices])
-# Add grouping variable
-dt.scr$grp <- rownames(tmp)
-dt.scr
-
-# Loadings, i.e. arrows (df.v)
-dt.rot <- as.data.frame(m1$rotation[, choices])
-dt.rot$feat <- rownames(dt.rot)
-dt.rot <- data.table(dt.rot)
-dt.rot
-
-dt.load <- melt.data.table(dt.rot,
-                           id.vars = "feat",
-                           measure.vars = 1:2,
-                           variable.name = "pc",
-                           value.name = "loading")
-dt.load$feat <- factor(dt.load$feat,
-                       levels = unique(dt.load$feat))
-# # Plot loadings
-# p0 <- ggplot(data = dt.load,
-#              aes(x = feat,
-#                  y = loading)) +
-#   facet_wrap(~ pc,
-#              nrow = 2) +
-#   geom_bar(stat = "identity") +
-#   ggtitle("PC Loadings") +
-#   theme(plot.title = element_text(hjust = 0.5),
-#         axis.text.x = element_text(angle = 45,
-#                                    hjust = 1))
-# p0
-
-# Axis labels
-u.axis.labs <- paste(colnames(dt.rot)[1:2], 
-                     sprintf('(%0.1f%% explained var.)', 
-                             100*m1$sdev[choices]^2/sum(m1$sdev^2)))
-u.axis.labs
-
-# Keep only a few variables with high loadings in PC1 (94% of variation)----
-gene.rank<- rank(x = (dt.rot$PC1*m1$sdev[choices[1]]^2/sum(m1$sdev^2))^2 +
-                   (dt.rot$PC2*m1$sdev[choices[2]]^2/sum(m1$sdev^2))^2) < 11
-
-var.keep.ndx <- which(dt.rot$feat %in% dt.rot$feat[gene.rank])
-var.keep.ndx
-
-# CHECKPOINT:
-dd <- dt.rot[var.keep.ndx,]
-names(dd)[3] <- "gene"
-dd <- merge(dd,
-            dt1[gene %in% dd$gene, ],
-            by = "gene")
-
-p1 <- ggplot(data = dt.rot[var.keep.ndx,],
-             aes(x = PC1,
-                 y = PC2)) +
-  # coord_equal() +
-  geom_point(data = dt.scr,
-             aes(fill = grp),
-             shape = 21,
-             size = 4) +
-  # geom_segment(aes(x = 0,
-  #                  y = 0,
-  #                  xend = 200000*PC1,
-  #                  yend = 200000*PC2),
-  #              arrow = arrow(length = unit(1/2, 'picas')),
-  #              color = "black") +
-  # geom_text(aes(x = 220000*PC1,
-  #               y = 220000*PC2,
-  #               label = dt.rot$feat[var.keep.ndx]),
-  #           size = 3,
-  #           hjust = 0.5) +
-  scale_x_continuous(u.axis.labs[1]) +
-  scale_y_continuous(u.axis.labs[2]) +
-  scale_fill_manual(name = "Treatment",
-                    breaks = dt.scr$grp,
-                    labels = gsub(x = dt.scr$grp,
-                                  pattern = "_fpm",
-                                  replacement = ""),
-                    values = c(C_fpm = "white",
-                               RA_fpm = "red",
-                               SFN_fpm = "green",
-                               SRA_fpm = "blue",
-                               UA_fpm = "black",
-                               URA_fpm = "yellow")) +
-  # scale_fill_discrete(name = grp) +
-  ggtitle("PCA Plot of Samples") +
-  theme(plot.title = element_text(hjust = 0.5,
-                                  size = 10))
-p1
-
-tiff(filename = "tmp/pca_biplot.tiff",
-     height = 5.5,
-     width = 7,
-     units = 'in',
-     res = 300,
-     compression = "lzw+p")
-print(p1)
-graphics.off()
-
-# CHECKPOINT: arrows corresponding to treatments
-dt1[dt1$gene %in% c("MSH5-SAPCD1"), ]
+# Keep RNA data for the selected genes----
+rna <- dt2
+rm(list = ls()[ls() != "rna"])
+gc()
 
 # DNA----
-dna <- fread("rodica_ngs/data/combined_fr5c5_Yen_raw_by_gene.csv")
-
-# Rename variables----
-colnames(dna)[colnames(dna) %in% c("X11",
-                                   "X12",
-                                   "X13",
-                                   "X14",
-                                   "X15",
-                                   "X16",
-                                   "geneId")] <- c("11.Control",
-                                                   "12.UA",
-                                                   "13.SFN",
-                                                   "14.RA",
-                                                   "15.UA+RA",
-                                                   "16.SFN+RA",
-                                                   "gene")
+dna <- fread("data/minden_dna.csv")
+dna
 
 # In DNA data, keep only the genes selected from RNA expressions----
 dna <- dna[gene %in% rna$gene, ]
 dna
 
 length(unique(dna$gene))
-# 97
+# 153
 
 length(unique(rna$gene))
-# 109
-
-# Differences----
-dna$RA.vs.C.1 <- 100*(dna$`14.RA` - dna$`11.Control`)
-
-dna$SFN.vs.C.1 <- 100*(dna$`13.SFN` - dna$`11.Control`)
-dna$RA.SFN.vs.RA.1 <- 100*(dna$`16.SFN+RA` - dna$`14.RA`)
-
-dna$UA.vs.C.1 <- 100*(dna$`12.UA` - dna$`11.Control`)
-dna$RA.UA.vs.RA.1 <- 100*(dna$`15.UA+RA` - dna$`14.RA`)
+# 160
 
 # Separate genes with meaningfull (>10%) differences----
-gene.keep <- unique(dna$gene[abs(dna$RA.vs.C.1) >= 10 |
-                               abs(dna$SFN.vs.C.1) >= 10 |
-                               abs(dna$RA.SFN.vs.RA.1) >= 10 |
-                               abs(dna$UA.vs.C.1) >= 10 |
-                               abs(dna$RA.UA.vs.RA.1) >= 10])
+dna$dMethyl <- 100*(dna$`7.KPT9274` - dna$`6.Control`)
+hist(dna$dMethyl, 100)
+
+plot(dna$dMethyl ~ dna$`6.Control`)
+
+gene.keep <- unique(dna$gene[abs(dna$dMethyl) >= 10])
 gene.keep
-# 51 genes
+# 29 genes
 
 dna <- dna[gene %in% gene.keep, ]
-
-dna[, distRank := rev(rank(distanceToTSS)),
+dna[, distRank := rev(rank(distance)),
     by = gene]
 
 dna
 
 # Transform to Long format----
-dt1 <- melt.data.table(data = dna,
-                       id.vars = c("gene",
-                                   "CpG",
-                                   "annotation",
-                                   "distanceToTSS",
-                                   "distRank"),
-                       measure.vars = c("RA.vs.C.1",
-                                        "SFN.vs.C.1",
-                                        "RA.SFN.vs.RA.1",
-                                        "UA.vs.C.1",
-                                        "RA.UA.vs.RA.1"),
-                       variable.name = "Treatment",
-                       value.name = "DNA")
-dt1$Treatment <- as.character(dt1$Treatment)
+dt1 <- dna[, c("gene",
+               "CpG",
+               "feature",
+               "distance",
+               "distRank",
+               "dMethyl"), ]
+dt1
 
-dt1$annotation[substr(dt1$annotation, 1, 4) == "Exon"] <- "Exon"
-dt1$annotation[substr(dt1$annotation, 1, 6) == "Intron"] <- "Intron"
-dt1$annotation[substr(dt1$annotation, 1, 8) == "Promoter"] <- "Promoter"
-dt1$annotation[substr(dt1$annotation, 1, 4) == "Down"] <- "Downstream"
-dt1$annotation <- factor(dt1$annotation)
-
+dt1$feature[substr(dt1$feature, 1, 4) == "Exon"] <- "Exon"
+dt1$feature[substr(dt1$feature, 1, 6) == "Intron"] <- "Intron"
+dt1$feature[substr(dt1$feature, 1, 8) == "Promoter"] <- "Promoter"
+dt1$feature[substr(dt1$feature, 1, 4) == "Down"] <- "Downstream"
+dt1$feature <- factor(dt1$feature)
 summary(dt1$CpG)
 
 dt1$reg <- "5 to 10"
@@ -484,24 +322,10 @@ dt1$reg <- factor(dt1$reg,
                                  ">20"))
 summary(dt1)
 
-# RNA data Long format----
-dt2 <- melt.data.table(data = rna,
-                       id.vars = "gene",
-                       measure.vars = c("RA.vs.C.1",
-                                        "SFN.vs.C.1",
-                                        "RA.SFN.vs.RA.1",
-                                        "UA.vs.C.1",
-                                        "RA.UA.vs.RA.1"),
-                       variable.name = "Treatment",
-                       value.name = "RNA")
-dt2$Treatment <- as.character(dt2$Treatment)
-dt2
-
 # Merge DNA with RNA----
 dt1 <- merge(dt1,
-             dt2,
-             by = c("gene",
-                    "Treatment"))
+             rna,
+             by = c("gene"))
 dt1
 
 # Starburst plot----
@@ -512,29 +336,31 @@ for (i in 1:length(unique(dt1$Treatment))) {
   tmp <- dt1[dt1$Treatment == cmp, ]
   tmp
   
-  g1 <- tmp[DNA >= 10 & 
-              RNA <= -0.5 &
-              annotation == "Promoter"]
+  g1 <- dt1[dMethyl >= 10 & 
+              `log2(K2-D3)` < 0 &
+              feature == "Promoter", ]
   g1
   length(unique(g1$gene))
+  # 5 genes
   
-  g2 <- tmp[DNA <= -10 & 
-              RNA >= 0.5 &
-              annotation == "Promoter"]
+  g2 <- dt1[dMethyl <= -10 & 
+              `log2(K2-D3)` > 0 &
+              feature == "Promoter"]
   g2
   length(unique(g2$gene))
+  # 0 genes
   
   p1 <- ggplot(data = tmp,
                aes(x = DNA,
                    y = RNA,
-                   fill = annotation)) +
+                   fill = feature)) +
     geom_point(alpha = 0.7,
                size = 2,
                shape = 21) +
     geom_text(data = unique(tmp[gene %in% unique(g1$gene) &
-                                  annotation == "Promoter",
+                                  feature == "Promoter",
                                 c("gene",
-                                  "annotation",
+                                  "feature",
                                   "RNA")]),
               aes(x = 40,
                   y = RNA,
@@ -542,9 +368,9 @@ for (i in 1:length(unique(dt1$Treatment))) {
               color = "blue",
               size = 2) +
     geom_text(data = unique(tmp[gene %in% unique(g2$gene) &
-                                  annotation == "Promoter", 
+                                  feature == "Promoter", 
                                 c("gene",
-                                  "annotation",
+                                  "feature",
                                   "RNA")]),
               aes(x = -40,
                   y = RNA,
@@ -621,7 +447,7 @@ for (i in 1:length(unique(dna$gene))) {
                      yend = DNA)) + 
     geom_point(aes(x = distRank,
                    y = DNA,
-                   fill = annotation,
+                   fill = feature,
                    size = reg),
                shape = 21) +
     # geom_rect(aes(xmin = -Inf,
