@@ -292,7 +292,7 @@ gene.keep
 # 29 genes
 
 dna <- dna[gene %in% gene.keep, ]
-dna[, distRank := rev(rank(distance)),
+dna[, distRank := rank(distance),
     by = gene]
 
 dna
@@ -329,102 +329,86 @@ dt1 <- merge(dt1,
 dt1
 
 # Starburst plot----
-for (i in 1:length(unique(dt1$Treatment))) {
-  cmp <- unique(dt1$Treatment)[i]
-  
-  
-  tmp <- dt1[dt1$Treatment == cmp, ]
-  tmp
-  
-  g1 <- dt1[dMethyl >= 10 & 
-              `log2(K2-D3)` < 0 &
-              feature == "Promoter", ]
-  g1
-  length(unique(g1$gene))
-  # 5 genes
-  
-  g2 <- dt1[dMethyl <= -10 & 
-              `log2(K2-D3)` > 0 &
-              feature == "Promoter"]
-  g2
-  length(unique(g2$gene))
-  # 0 genes
-  
-  p1 <- ggplot(data = tmp,
-               aes(x = DNA,
-                   y = RNA,
-                   fill = feature)) +
-    geom_point(alpha = 0.7,
-               size = 2,
-               shape = 21) +
-    geom_text(data = unique(tmp[gene %in% unique(g1$gene) &
-                                  feature == "Promoter",
-                                c("gene",
-                                  "feature",
-                                  "RNA")]),
-              aes(x = 40,
-                  y = RNA,
-                  label = gene),
-              color = "blue",
-              size = 2) +
-    geom_text(data = unique(tmp[gene %in% unique(g2$gene) &
-                                  feature == "Promoter", 
-                                c("gene",
-                                  "feature",
-                                  "RNA")]),
-              aes(x = -40,
-                  y = RNA,
-                  label = gene),
-              color = "blue",
-              size = 2) +
-    geom_hline(yintercept = c(-0.5, 0.5),
-               linetype = "dashed") +
-    geom_vline(xintercept = c(-10, 10),
-               linetype = "dashed") +
-    scale_x_continuous("DNA Methylation Difference(%)",
-                       breaks = seq(-50, 30, 10)) +
-    scale_y_continuous("RNA Expression Difference (log2)",
-                       breaks = seq(-5, 10, 1)) +
-    ggtitle(cmp) +
-    # scale_fill_manual("Region",
-    #                   values = c("Promoter" = "green",
-    #                              "5' UTR" = "white",
-    #                              "Body" = "blue",
-    #                              "3' UTR" = "grey",
-    #                              "Downstream" = "red")) +
-    theme(plot.title = element_text(hjust = 0.5))
-  p1
-  tiff(filename = paste("tmp/",
-                        cmp,
-                        ".tiff",
-                        sep = ""),
-       height = 10,
-       width = 10,
-       units = 'in',
-       res = 300,
-       compression = "lzw+p")
-  print(p1)
-  graphics.off()
-}
+g1 <- dt1[dMethyl >= 10 & 
+            `log2(K2-D3)` < 0 &
+            feature == "Promoter", ]
+g1
+length(unique(g1$gene))
+# 5 genes
+
+g2 <- dt1[dMethyl <= -10 & 
+            `log2(K2-D3)` > 0 &
+            feature == "Promoter"]
+g2
+length(unique(g2$gene))
+# 0 genes
+
+p1 <- ggplot(data = dt1,
+             aes(x = dMethyl,
+                 y = `log2(K2-D3)`,
+                 fill = feature)) +
+  geom_point(alpha = 0.7,
+             size = 2,
+             shape = 21) +
+  geom_text(data = unique(dt1[gene %in% unique(g1$gene) &
+                                feature == "Promoter",
+                              c("gene",
+                                "feature",
+                                "log2(K2-D3)")]),
+            aes(x = 40,
+                y = `log2(K2-D3)`,
+                label = gene),
+            color = "blue",
+            size = 2) +
+  # geom_text(data = unique(dt1[gene %in% unique(g2$gene) &
+  #                               feature == "Promoter", 
+  #                             c("gene",
+  #                               "feature",
+  #                               "log2(K2-D3)")]),
+  #           aes(x = -40,
+  #               y = `log2(K2-D3)`,
+  #               label = gene),
+  #           color = "blue",
+  #           size = 2) +
+  geom_hline(yintercept = c(-4, 4),
+             linetype = "dashed") +
+  geom_vline(xintercept = c(-10, 10),
+             linetype = "dashed") +
+  scale_x_continuous("DNA Methylation Difference(%)",
+                     breaks = seq(-50, 30, 10)) +
+  scale_y_continuous("RNA Expression Difference (log2)",
+                     breaks = seq(-5, 10, 1)) +
+  ggtitle("") +
+  # scale_fill_manual("Region",
+  #                   values = c("Promoter" = "green",
+  #                              "5' UTR" = "white",
+  #                              "Body" = "blue",
+  #                              "3' UTR" = "grey",
+  #                              "Downstream" = "red")) +
+  theme(plot.title = element_text(hjust = 0.5))
+p1
+
+tiff(filename = "tmp/starburst.tiff",
+     height = 10,
+     width = 10,
+     units = 'in',
+     res = 300,
+     compression = "lzw+p")
+print(p1)
+graphics.off()
 
 # Isolate genes----
-for (i in 1:length(unique(dna$gene))) {
-  gX <- unique(dt1$gene)[i]
+gene.select <- unique(c(g1$gene, g2$gene))
+gene.select
+
+for (i in 1:length(gene.select)) {
+  gX <- gene.select[i]
   dna.gX <- dt1[dt1$gene %in% gX, ]
   dna.gX$y0 <- 0
-  
-  dna.gX$Treatment <- paste(dna.gX$Treatment,
-                            " (RNA = ",
-                            round(dna.gX$RNA, 3),
-                            ")",
-                            sep = "")
-  
+  dna.gX
   p1 <- ggplot(dna.gX,
                aes(x = distRank,
-                   y = DNA)) +
-    facet_wrap(.~ Treatment,
-               scales = "free_y",
-               ncol = 1) +
+                   y = dMethyl)) +
     geom_rect(aes(xmin = -Inf,
                   xmax = Inf,
                   ymin = -Inf,
@@ -444,9 +428,9 @@ for (i in 1:length(unique(dna$gene))) {
     geom_segment(aes(x = distRank,
                      y = y0,
                      xend = distRank,
-                     yend = DNA)) + 
+                     yend = dMethyl)) + 
     geom_point(aes(x = distRank,
-                   y = DNA,
+                   y = dMethyl,
                    fill = feature,
                    size = reg),
                shape = 21) +
@@ -457,11 +441,14 @@ for (i in 1:length(unique(dna$gene))) {
     #           fill = "white",
     #           alpha = 0.1) +
     ggtitle(paste("Gene:",
-                  gX)) +
+                  gX,
+                  ", dlog2(RNA) =",
+                  round(dna.gX$`log2(K2-D3)`,
+                        3))) +
     scale_x_continuous("Distance from TSS",
                        breaks = dna.gX$distRank,
-                       labels = dna.gX$distanceToTSS) +
-    scale_y_continuous("% Methylation") +
+                       labels = dna.gX$distance) +
+    scale_y_continuous("Methylation Difference (%)") +
     scale_fill_manual("Region",
                       values = c("Distal Intergenic" = "purple",
                                  "Exon" = "blue",
